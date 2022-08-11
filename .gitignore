@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+data/
+locals/
+.env.dev
+.env.prod

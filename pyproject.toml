@@ -1,0 +1,16 @@
+[project]
+name = "thor-mlops"
+version = "0.0.1"
+authors = [
+	{name = "Tom Scheffers", email="tom@thunderstock.nl"},
+]
+description = "Amazing ML ops for preprocessing, feature storage and inference"
+readme = "README.md"
+license = { file="LICENSE" }
+
+[project.urls]
+"Homepage" = "https://github.com/TomScheffers/thor-mlops"
+
+[build-system]
+requires = ["setuptools", "pyarrow==9.0.0"]
+build-backend = "setuptools.build_meta"
