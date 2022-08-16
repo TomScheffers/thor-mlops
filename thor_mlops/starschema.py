@@ -16,7 +16,7 @@ class ThorStarSchema():
         }
     
     # ENRICHING
-    def enrich(self, base: pa.Table, verbose: bool = False):
+    def enrich(self, base: pa.Table, verbose: bool = False) -> pa.table:
         for k, v in self.tables.items():
             keys_overlap = [k for k in v['keys'] if k in base.column_names]
             if not keys_overlap:
@@ -29,7 +29,7 @@ class ThorStarSchema():
             if verbose: print(f"Size after joining {k}: {base.num_rows} rows")
         return base
 
-    def growth_rate(self, base: pa.Table):
+    def growth_rate(self, base: pa.Table) -> int:
         rate = 1
         for k, v in self.tables.items():
             if v['core']: # WE CAN ONLY GROW FROM CORE FEATURES

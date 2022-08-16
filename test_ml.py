@@ -30,5 +30,11 @@ t2 = pa.Table.from_pydict({
     'Max Speed': [380., 10., None, 26.]
 })
 new_cleaner = ThorTableCleaner().from_dict(cleaner_dict)
-X_pred, _ = new_cleaner.transform(t2)
-head(X_pred)
+X, _ = new_cleaner.transform(t2)
+head(X)
+
+X = new_cleaner.mutate(X)
+head(X)
+
+X_train, X_test = new_cleaner.split(table=X, perc=0.5)
+head(X_train)

@@ -1,5 +1,5 @@
 import pyarrow as pa
-import ujson as json
+import orjson as json
 import numpy as np
 
 def loads_json_column(table: pa.Table, column:str) -> pa.Table:
