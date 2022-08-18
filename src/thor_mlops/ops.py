@@ -2,12 +2,12 @@ import pyarrow as pa
 import orjson as json
 import numpy as np
 
-def loads_json_column(table: pa.Table, column:str) -> pa.Table:
+def loads_json_column(table: pa.Table, column:str, drop:bool = False) -> pa.Table:
     arr = np.vectorize(json.loads)(table.column(column).to_numpy())
     jt = pa.Table.from_pylist(arr.tolist()) 
     for pc in jt.column_names:
         table = table.append_column(column + '/' + pc, jt.column(pc))
-    return table
+    return (table.drop([column]) if drop else table)
 
 # Show for easier printing
 def head(table, n=5, max_width=100):
