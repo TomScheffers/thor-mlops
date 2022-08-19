@@ -7,7 +7,7 @@ from thor_mlops.clean import ThorTableCleaner
 
 class ThorStarSchema():
     def __init__(self, numericals: List[str], categoricals: List[str], one_hots: List[str], label: str):
-        self.tables, self.contexts = {}, []
+        self.tables, self.calculations = {}, {}
         self.numericals, self.categoricals, self.one_hots, self.label = numericals, categoricals, one_hots, label
         
         # Register TableCleaner
@@ -15,7 +15,7 @@ class ThorStarSchema():
         self.cln.register(numericals=numericals, categoricals=categoricals, one_hots=one_hots)
 
     # TRACKING TABLES
-    def clean_table(self, table: pa.Table, keys: List[str], contexts: List[str] = [], core: bool = False, json_columns: List[str] = []):
+    def clean_table(self, table: pa.Table, keys: List[str] = [], contexts: List[str] = [], json_columns: List[str] = []):
         # CLEAN JSON STRINGS TO COLUMNS
         for col in json_columns:
             table = loads_json_column(table=table, column=col, drop=True)
@@ -34,11 +34,14 @@ class ThorStarSchema():
 
         # CLEAN & SAVE TABLE
         self.tables[name] = {
-            'table': self.clean_table(table=table, keys=keys, contexts=contexts, core=core, json_columns=json_columns),
+            'table': self.clean_table(table=table, keys=keys, contexts=contexts, json_columns=json_columns),
             'keys': keys,
             'contexts': contexts,
             'core': core
         }
+
+    def register_calculation(self, name: str, func):
+        self.calculations[name] = func
     
     # ENRICHING
     def enrich(self, base: pa.Table, verbose: bool = False) -> pa.Table:
@@ -53,7 +56,13 @@ class ThorStarSchema():
             base = base.join(v['table'], keys=keys_overlap, join_type=('inner' if v['core'] else 'left semi')) # LEFT SEMI AVOIDS DUPLICATING LEFT VALUES IN CASE OF MULTIPLE MATCHES
             if verbose: print(f"Size after joining {k}: {base.num_rows} rows")
 
-        # TODO: CALCULATIONS & UNCLEANED COLUMNS
+        # PERFORM CALCULATIONS
+        for k, func in self.calculations.items():
+            # PERFORM CALCULATION & CLEAN & APPEND
+            base = base.append_column(k, func(base))
+            tc = self.clean_table(table=base.select([k]))
+            base = base.append_column(k + '_c', tc.column(k + '_c'))
+
         print("Unclean columns:", self.cln.uninitialized())
 
         # SPLIT CONTEXT AND CLEANS

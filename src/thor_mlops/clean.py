@@ -104,13 +104,17 @@ class ThorTableCleaner():
     def __init__(self):
         self.columns = []
     
-    # REGISTERING COLUMNS
+    # HANDY FUNCTIONS
+    def names(self):
+        return list(map(lambda x: x.name, self.columns))
+
     def features(self):
         return [feat for col in self.columns for feat in col.features()]
 
     def uninitialized(self):
         return [col.name for col in self.columns if not col.measured]
-
+    
+    # REGISTERING COLUMNS
     def register_numerical(self, name: str, impute: str = 'mean', clip: bool = True, mutate_perc: float = 0.1, mutate_value: int = -1):
         self.columns.append(NumericalColumn(name=name, impute=impute, clip=clip, mutate_perc=mutate_perc, mutate_value=mutate_value))
 

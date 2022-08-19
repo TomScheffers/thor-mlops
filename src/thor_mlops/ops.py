@@ -4,6 +4,7 @@ import numpy as np
 
 def loads_json_column(table: pa.Table, column:str, drop:bool = False) -> pa.Table:
     arr = np.vectorize(json.loads)(table.column(column).to_numpy())
+    arr[arr == None] = dict()
     keys = set.union(*np.vectorize(lambda x: set(x.keys()))(arr[:min(arr.shape[0], 1000)])) # Gather keys from first 1000 samples
     jt = pa.Table.from_pylist(arr, schema=pa.schema([(k, pa.string()) for k in keys])) 
     for pc in jt.column_names:
