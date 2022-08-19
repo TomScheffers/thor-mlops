@@ -63,10 +63,12 @@ class ThorStarSchema():
             tc = self.clean_table(table=base.select([k]))
             base = base.append_column(k + '_c', tc.column(k + '_c'))
 
-        print("Unclean columns:", self.cln.uninitialized())
+        if verbose: print("Unclean columns:", self.cln.uninitialized())
 
         # SPLIT CONTEXT AND CLEANS
         features = [col + '_c' for col in self.cln.features()]
+        if verbose: print("Features:", features)
+        if verbose: print("Base columns:", base.column_names)
         return base.select([col for col in base.column_names if col[-2:] != '_c']), base.select(features).rename_columns(map(lambda x: x[:-2], features)), base.column(self.label)
 
     def growth_rate(self, base: pa.Table) -> int:
