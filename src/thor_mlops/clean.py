@@ -168,9 +168,9 @@ class ThorTableCleaner():
             if isinstance(col, OneHotColumn):
                 continue
             elif isinstance(col, CategoricalColumn):
-                    arr = table.column(col.name).fill_null(0)                    
+                    arr = table.column(col.name).fill_null(col.mutate_value)                    
             elif isinstance(col, NumericalColumn):
-                arr = table.column(col.name).fill_null(col.value())
+                arr = table.column(col.name).fill_null(col.mutate_value)
             
             table = table.drop([col.name]).append_column(col.name, arr)        
         return table

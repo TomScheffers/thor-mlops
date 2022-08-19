@@ -8,13 +8,14 @@ from thor_mlops.clean import ThorTableCleaner
 class ThorStarSchema():
     def __init__(self, numericals: List[str], categoricals: List[str], one_hots: List[str], label: str):
         self.tables, self.contexts = {}, []
+        self.numericals, self.categoricals, self.one_hots, self.label = numericals, categoricals, one_hots, label
+        
+        # Register TableCleaner
         self.cln = ThorTableCleaner()
         self.cln.register(numericals=numericals, categoricals=categoricals, one_hots=one_hots)
-        self.label = label
 
     # TRACKING TABLES
-    def register_table(self, name: str, table: pa.Table, keys: List[str], contexts: List[str] = [], core: bool = False, json_columns: List[str] = []):
-        assert all(k in table.column_names for k in keys)
+    def clean_table(self, table: pa.Table, keys: List[str], contexts: List[str] = [], core: bool = False, json_columns: List[str] = []):
         # CLEAN JSON STRINGS TO COLUMNS
         for col in json_columns:
             table = loads_json_column(table=table, column=col, drop=True)
@@ -23,15 +24,20 @@ class ThorStarSchema():
         clean,_ = self.cln.transform(table=table, warn_missing=False)
         for col in clean.column_names:
             table = table.append_column(col + "_c", clean.column(col))
-        print(table.column_names)
+
+        # REMOVE ALL COLUMNS WHICH ARE NOT IN KEYS OR CONTEXTS
+        table = table.select([col for col in table.column_names if col in keys or col in contexts or col[-2:] == '_c'])
+        return table
+
+    def register_table(self, name: str, table: pa.Table, keys: List[str], contexts: List[str] = [], core: bool = False, json_columns: List[str] = []):
+        assert all(k in table.column_names for k in keys)
 
         # CLEAN & SAVE TABLE
         self.tables[name] = {
-            'table': table,
+            'table': self.clean_table(table=table, keys=keys, contexts=contexts, core=core, json_columns=json_columns),
             'keys': keys,
             'contexts': contexts,
-            'core': core,
-            'clean_columns': clean.column_names
+            'core': core
         }
     
     # ENRICHING
