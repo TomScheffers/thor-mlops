@@ -6,9 +6,9 @@ from thor_mlops.ops import loads_json_column
 from thor_mlops.clean import ThorTableCleaner
 
 class ThorStarSchema():
-    def __init__(self, numericals: List[str], categoricals: List[str], one_hots: List[str], label: str):
+    def __init__(self, numericals: List[str], categoricals: List[str], one_hots: List[str], label: str, weight: str = None):
         self.tables, self.calculations = {}, {}
-        self.numericals, self.categoricals, self.one_hots, self.label = numericals, categoricals, one_hots, label
+        self.numericals, self.categoricals, self.one_hots, self.label, self.weight = numericals, categoricals, one_hots, label, weight
         
         # Register TableCleaner
         self.cln = ThorTableCleaner()
@@ -46,6 +46,7 @@ class ThorStarSchema():
     # ENRICHING
     def enrich(self, base: pa.Table, verbose: bool = False) -> pa.Table:
         for k, v in self.tables.items():
+            start_size = base.num_rows
             keys_overlap = [k for k in v['keys'] if k in base.column_names]
             if not keys_overlap:
                 if not v['core']: # AVOID CROSS JOINING NON CORE TABLES
@@ -53,8 +54,10 @@ class ThorStarSchema():
                     continue
                 base, v['table'] = base.append_column('$join_key', pa.scalar(0)), v['table'].append_column('$join_key', pa.scalar(0)) 
                 keys_overlap = '$join_key'
-            base = base.join(v['table'], keys=keys_overlap, join_type=('inner' if v['core'] else 'left semi')) # LEFT SEMI AVOIDS DUPLICATING LEFT VALUES IN CASE OF MULTIPLE MATCHES
-            if verbose: print(f"Size after joining {k}: {base.num_rows} rows")
+            join_method = ('inner' if v['core'] else 'left outer')
+            base = base.join(v['table'], keys=keys_overlap, join_type=join_method)
+            if verbose: print(f"Size after {join_method} joining {k} on {keys_overlap}: {base.num_rows} rows")
+            if not v['core']: assert base.num_rows == start_size # WE DO NOT WANT TO GROW ON NON-CORE TABLE JOINS
 
         # PERFORM CALCULATIONS
         for k, func in self.calculations.items():
@@ -69,7 +72,7 @@ class ThorStarSchema():
         features = [col + '_c' for col in self.cln.features()]
         if verbose: print("Features:", features)
         if verbose: print("Base columns:", base.column_names)
-        return base.select([col for col in base.column_names if col[-2:] != '_c']), base.select(features).rename_columns(map(lambda x: x[:-2], features)), base.column(self.label)
+        return base.select([col for col in base.column_names if col[-2:] != '_c']), base.select(features).rename_columns(map(lambda x: x[:-2], features)), base.column(self.label), (base.column(self.weight) if self.weight else None)
 
     def growth_rate(self, base: pa.Table) -> int:
         rate = 1
