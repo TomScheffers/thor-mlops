@@ -65,7 +65,8 @@ class ThorStarSchema():
             # PERFORM CALCULATION & CLEAN & APPEND
             base = base.append_column(k, func(base))
             tc = self.clean_table(table=base.select([k]))
-            base = base.append_column(k + '_c', tc.column(k + '_c'))
+            if k + '_c' in tc.column_names:
+                base = base.append_column(k + '_c', tc.column(k + '_c'))
 
         if verbose: print("Unclean columns:", self.cln.uninitialized())
 
