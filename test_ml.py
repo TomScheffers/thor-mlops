@@ -33,6 +33,6 @@ t2 = pa.Table.from_pydict({
     'Animal': ['Falcon', 'Goose', 'Parrot', 'Parrot'],
     'Max Speed': [380., 10., None, 26.]
 })
-new_cleaner = ThorTableCleaner().from_json('schema.json')
+new_cleaner = ThorTableCleaner.from_json('schema.json')
 X, _ = new_cleaner.transform(t2)
 head(X)

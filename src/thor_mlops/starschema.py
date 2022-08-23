@@ -1,3 +1,4 @@
+import json
 import pyarrow as pa
 import pyarrow.compute as c
 from typing import List, Tuple, Union
@@ -6,9 +7,9 @@ from thor_mlops.ops import loads_json_column
 from thor_mlops.clean import ThorTableCleaner
 
 class ThorStarSchema():
-    def __init__(self, numericals: List[str], categoricals: List[str], one_hots: List[str], label: str, weight: str = None):
+    def __init__(self, numericals: List[str], categoricals: List[str], one_hots: List[str], label: str, weight: str = None, config: dict = {}):
         self.tables, self.calculations = {}, {}
-        self.numericals, self.categoricals, self.one_hots, self.label, self.weight = numericals, categoricals, one_hots, label, weight
+        self.numericals, self.categoricals, self.one_hots, self.label, self.weight, self.config = numericals, categoricals, one_hots, label, weight, config
         
         # Register TableCleaner
         self.cln = ThorTableCleaner()
@@ -82,6 +83,34 @@ class ThorStarSchema():
                 if not keys_overlap: # WE ONLY GROW WHEN THERE IS A CROSS JOIN (NO KEYS OVERLAP)
                     rate *= v['table'].num_rows
         return rate
+
+    # SERIALIZATION
+    def to_dict(self):
+        return {
+            'numericals': self.numericals,
+            'categoricals': self.categoricals,
+            'one_hots': self.one_hots,
+            'label': self.label,
+            'weight': self.weight,
+            'config': self.config,
+            'cleaner': self.cln.to_dict() 
+        }
+
+    def to_json(self, path: str):
+        with open(path, 'w') as f:
+            json.dump(self.to_dict(), f, indent=4)
+
+    @classmethod
+    def from_dict(cls, state):
+        sts = ThorStarSchema(numericals=state['numericals'], categoricals=state['categoricals'], one_hots=state['one_hots'], label=state['label'], weight=state['weight'], config=state['config'])
+        sts.cln = ThorTableCleaner.from_dict(state=state['cleaner'])
+        return sts
+
+    @classmethod
+    def from_json(cls, path):
+        with open(path, 'r') as f:
+            state = json.load(f)
+        return cls.from_dict(state)
 
 
 

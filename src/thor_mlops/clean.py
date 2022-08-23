@@ -32,14 +32,14 @@ def clean_onehot(arr: pa.array, categories: List[str] = [], drop_first: bool = F
 
 # Cleaning Classes
 class NumericalColumn():
-    def __init__(self, name: str, impute: str = 'mean', clip: bool = True, v_min: float = None, v_mean: float = None, v_max: float = None,  mutate_perc: float = 0.0, mutate_value: int = -1):
+    def __init__(self, name: str, impute: str = 'mean', clip: bool = True, v_min: float = None, v_mean: float = None, v_max: float = None,  mutate_perc: float = 0.0, fill_value: int = -1):
         self.name, self.impute, self.clip = name, impute, clip
         self.measured = any((v_min, v_mean, v_max))
         self.mean, self.min, self.max = (v_mean or 0), (v_min or 0), (v_max or 0)
-        self.mutate_perc, self.mutate_value = mutate_perc, mutate_value
+        self.mutate_perc, self.fill_value = mutate_perc, fill_value
 
     def to_dict(self) -> dict:
-        return {"name": self.name, "type": "numerical", "impute": self.impute, "clip": self.clip, "v_min": self.min, "v_mean": self.mean, "v_max": self.max, "mutate_perc": self.mutate_perc, "mutate_value": self.mutate_value}
+        return {"name": self.name, "type": "numerical", "impute": self.impute, "clip": self.clip, "v_min": self.min, "v_mean": self.mean, "v_max": self.max, "mutate_perc": self.mutate_perc, "fill_value": self.fill_value}
 
     def update(self, arr: pa.array):
         self.mean = float(c.mean(arr.cast(pa.float32())).as_py())
@@ -63,13 +63,13 @@ class NumericalColumn():
         return cln
 
 class CategoricalColumn():
-    def __init__(self, name: str, categories: List[str] = [], mutate_perc: float = 0.0, mutate_value: int = 0):
+    def __init__(self, name: str, categories: List[str] = [], mutate_perc: float = 0.0, fill_value: int = 0):
         self.name, self.categories = name, categories
         self.measured = (True if categories else False)
-        self.mutate_perc, self.mutate_value = mutate_perc, mutate_value
+        self.mutate_perc, self.fill_value = mutate_perc, fill_value
 
     def to_dict(self) -> dict:
-        return {"name": self.name, "type": "categorical", "categories": self.categories, "mutate_perc": self.mutate_perc, "mutate_value": self.mutate_value}
+        return {"name": self.name, "type": "categorical", "categories": self.categories, "mutate_perc": self.mutate_perc, "fill_value": self.fill_value}
 
     def features(self):
         return [self.name]
@@ -82,13 +82,13 @@ class CategoricalColumn():
         return cln
 
 class OneHotColumn():
-    def __init__(self, name: str, categories: List[str] = [], mutate_perc: float = 0.0, mutate_value: int = 0):
+    def __init__(self, name: str, categories: List[str] = [], mutate_perc: float = 0.0, fill_value: int = 0):
         self.name, self.categories = name, categories
         self.measured = (True if categories else False)
-        self.mutate_perc, self.mutate_value = mutate_perc, mutate_value
+        self.mutate_perc, self.fill_value = mutate_perc, fill_value
 
     def to_dict(self) -> dict:
-        return {"name": self.name, "type": "one_hot", "categories": self.categories, "mutate_perc": self.mutate_perc, "mutate_value": self.mutate_value}
+        return {"name": self.name, "type": "one_hot", "categories": self.categories, "mutate_perc": self.mutate_perc, "fill_value": self.fill_value}
 
     def features(self):
         return [self.name + '_' + cat for cat in self.categories]
@@ -115,14 +115,14 @@ class ThorTableCleaner():
         return [col.name for col in self.columns if not col.measured]
     
     # REGISTERING COLUMNS
-    def register_numerical(self, name: str, impute: str = 'mean', clip: bool = True, mutate_perc: float = 0.1, mutate_value: int = -1):
-        self.columns.append(NumericalColumn(name=name, impute=impute, clip=clip, mutate_perc=mutate_perc, mutate_value=mutate_value))
+    def register_numerical(self, name: str, impute: str = 'mean', clip: bool = True, mutate_perc: float = 0.1, fill_value: int = -1):
+        self.columns.append(NumericalColumn(name=name, impute=impute, clip=clip, mutate_perc=mutate_perc, fill_value=fill_value))
 
-    def register_categorical(self, name: str, categories: List[str] = [], mutate_perc: float = 0.1, mutate_value: int = 0):
-        self.columns.append(CategoricalColumn(name=name, categories=categories, mutate_perc=mutate_perc, mutate_value=mutate_value))
+    def register_categorical(self, name: str, categories: List[str] = [], mutate_perc: float = 0.1, fill_value: int = 0):
+        self.columns.append(CategoricalColumn(name=name, categories=categories, mutate_perc=mutate_perc, fill_value=fill_value))
     
-    def register_one_hot(self, name: str, categories: List[str] = [], mutate_perc: float = 0.1, mutate_value: int = 0):
-        self.columns.append(OneHotColumn(name=name, categories=categories, mutate_perc=mutate_perc, mutate_value=mutate_value)) 
+    def register_one_hot(self, name: str, categories: List[str] = [], mutate_perc: float = 0.1, fill_value: int = 0):
+        self.columns.append(OneHotColumn(name=name, categories=categories, mutate_perc=mutate_perc, fill_value=fill_value)) 
 
     def register(self, numericals: List[str] = [], categoricals: List[str] = [], one_hots: List[str] = []):
         [self.register_numerical(c) for c in numericals], [self.register_categorical(c) for c in categoricals], [self.register_one_hot(c) for c in one_hots]
@@ -159,7 +159,7 @@ class ThorTableCleaner():
         for col in self.columns:
             if isinstance(col, OneHotColumn):
                 continue
-            arr = c.if_else(self.random_mask(n=table.num_rows, perc=col.mutate_perc), table.column(col.name), pa.scalar(col.mutate_value))
+            arr = c.if_else(self.random_mask(n=table.num_rows, perc=col.mutate_perc), table.column(col.name), pa.scalar(col.fill_value))
             table = table.drop([col.name]).append_column(col.name, arr)
         return table
 
@@ -172,9 +172,9 @@ class ThorTableCleaner():
             if isinstance(col, OneHotColumn):
                 continue
             elif isinstance(col, CategoricalColumn):
-                    arr = table.column(col.name).fill_null(col.mutate_value)                    
+                    arr = table.column(col.name).fill_null(col.fill_value)                    
             elif isinstance(col, NumericalColumn):
-                arr = table.column(col.name).fill_null(col.mutate_value)
+                arr = table.column(col.name).fill_null(col.fill_value)
             
             table = table.drop([col.name]).append_column(col.name, arr)        
         return table
@@ -200,7 +200,7 @@ class ThorTableCleaner():
 
     def to_json(self, path):
         with open(path, 'w') as f:
-            json.dump(self.to_dict(), f)
+            json.dump(self.to_dict(), f, indent=4)
 
     @classmethod
     def from_dict(cls, state):
