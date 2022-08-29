@@ -53,12 +53,21 @@ class ThorStarSchema():
                 if not v['core']: # AVOID CROSS JOINING NON CORE TABLES
                     if verbose: print(f"Avoiding cross join for table {k}, since it is not core and has no overlapping keys")
                     continue
-                base, v['table'] = base.append_column('$join_key', pa.scalar(0)), v['table'].append_column('$join_key', pa.scalar(0)) 
+                if '$join_key' not in base.column_names: base = base.append_column('$join_key', pa.array([0] * base.num_rows, pa.int8()))
+                if '$join_key' not in v['table'].column_names: v['table'] = v['table'].append_column('$join_key', pa.array([0] * v['table'].num_rows, pa.int8()))
                 keys_overlap = '$join_key'
             join_method = ('inner' if v['core'] else 'left outer')
-            base = base.join(v['table'], keys=keys_overlap, join_type=join_method)
+            base = base.join(v['table'], keys=keys_overlap, join_type=join_method, right_suffix='_r')
+
             if verbose: print(f"Size after {join_method} joining {k} on {keys_overlap}: {base.num_rows} rows")
             if not v['core']: assert base.num_rows == start_size # WE DO NOT WANT TO GROW ON NON-CORE TABLE JOINS
+
+            # COALESCE WHEN MULTIPLE VALUES ARE FOUND
+            for col in base.column_names:
+                if col[-2:] == '_r':
+                    if verbose: print(f"Coalescing double columns {col}")
+                    arr = c.coalesce(base.column(col[:-2]), base.column(col))
+                    base = base.drop([col, col[:-2]]).append_column(col[:-2], arr)
 
         # PERFORM CALCULATIONS
         for k, func in self.calculations.items():
@@ -68,13 +77,19 @@ class ThorStarSchema():
             if k + '_c' in tc.column_names:
                 base = base.append_column(k + '_c', tc.column(k + '_c'))
 
-        if verbose: print("Unclean columns:", self.cln.uninitialized())
+        # ADD MISSING FEATURES
+        for col in self.cln.columns:
+            for feat in col.features():
+                if feat + "_c" not in base.column_names: 
+                    if verbose: print(f"Adding missing feature {feat} with default value {col.fill_value}")
+                    base = base.append_column(feat + "_c", pa.array([col.fill_value] * base.num_rows))
 
-        # SPLIT CONTEXT AND CLEANS
+        # RETURN DATA
         features = [col + '_c' for col in self.cln.features()]
         if verbose: print("Features:", features)
+        if verbose: print("Unclean columns:", self.cln.uninitialized())
         if verbose: print("Base columns:", base.column_names)
-        return base.select([col for col in base.column_names if col[-2:] != '_c']), base.select(features).rename_columns(map(lambda x: x[:-2], features)), base.column(self.label), (base.column(self.weight) if self.weight else None)
+        return base.select([col for col in base.column_names if col[-2:] != '_c']), base.select(features).rename_columns(map(lambda x: x[:-2], features)), (base.column(self.label) if self.label and self.label in base.column_names else None), (base.column(self.weight) if self.weight and self.weight in base.column_names else None)
 
     def growth_rate(self, base: pa.Table) -> int:
         rate = 1

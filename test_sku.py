@@ -6,7 +6,7 @@ from thor_mlops.ops import head
 
 sts = ThorStarSchema(
     numericals=['original_price', 'skus', 'properties/colors', 'discount_value'], 
-    categoricals=['group_key', 'collection_key', 'sku_name', 'properties/actie', 'properties/brand', 'properties/season', 'properties/color_code', 'properties/life_cycle'],
+    categoricals=['group_key', 'collection_key', 'sku_name', 'properties/actie', 'properties/brand', 'properties/season', 'properties/color_code', 'properties/life_cycle', 'unknown_column'],
     one_hots=[],
     label='technical',
     weight='technical',
@@ -19,6 +19,7 @@ t_sc = ds.dataset("data/stock_current/", format="parquet").to_table()
 
 t1 = time.time()
 sts.register_table(name='skus', table=t_sk, keys=['sku_key'], core=False, json_columns=['properties'])
+sts.register_table(name='skus_2', table=t_sk, keys=['sku_key'], core=False, json_columns=['properties'])
 sts.register_calculation(name='discount_value', func=lambda t: c.subtract(t.column('original_price_c'), t.column('original_price_c')))
 
 # Join stock_current
