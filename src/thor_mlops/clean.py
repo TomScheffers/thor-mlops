@@ -32,17 +32,19 @@ def clean_onehot(arr: pa.array, categories: List[str] = [], drop_first: bool = F
 
 # Cleaning Classes
 class NumericalColumn():
-    def __init__(self, name: str, impute: str = 'mean', clip: bool = True, v_min: float = None, v_mean: float = None, v_max: float = None,  mutate_perc: float = 0.0, fill_value: int = -1):
+    def __init__(self, name: str, impute: str = 'mean', clip: bool = True, v_min: float = None, v_mean: float = None, v_stddev: float = None, v_max: float = None,  mutate_perc: float = 0.0, fill_value: int = -1):
         self.name, self.impute, self.clip = name, impute, clip
         self.measured = any((v_min, v_mean, v_max))
-        self.mean, self.min, self.max = (v_mean or 0), (v_min or 0), (v_max or 0)
+        self.mean, self.stddev, self.min, self.max = (v_mean or 0), (v_stddev or 0), (v_min or 0), (v_max or 0)
         self.mutate_perc, self.fill_value = mutate_perc, fill_value
 
     def to_dict(self) -> dict:
-        return {"name": self.name, "type": "numerical", "impute": self.impute, "clip": self.clip, "v_min": self.min, "v_mean": self.mean, "v_max": self.max, "mutate_perc": self.mutate_perc, "fill_value": self.fill_value}
+        return {"name": self.name, "type": "numerical", "impute": self.impute, "clip": self.clip, "v_min": self.min, "v_mean": self.mean, "v_stddev": self.stddev, "v_max": self.max, "mutate_perc": self.mutate_perc, "fill_value": self.fill_value}
 
     def update(self, arr: pa.array):
-        self.mean = float(c.mean(arr.cast(pa.float32())).as_py())
+        arr = arr.cast(pa.float32())
+        self.mean = float(c.mean(arr).as_py())
+        self.stddev = float(c.stddev(arr).as_py())
         minmax = c.min_max(arr)
         self.min, self.max = float(minmax['min'].as_py()), float(minmax['max'].as_py())
 
@@ -159,7 +161,12 @@ class ThorTableCleaner():
         for col in self.columns:
             if isinstance(col, OneHotColumn):
                 continue
-            arr = c.if_else(self.random_mask(n=table.num_rows, perc=col.mutate_perc), table.column(col.name), pa.scalar(col.fill_value))
+            elif isinstance(col, CategoricalColumn):
+                arr = c.if_else(self.random_mask(n=table.num_rows, perc=col.mutate_perc), table.column(col.name), pa.scalar(col.fill_value))
+            elif isinstance(col, NumericalColumn):
+                noise = np.random.normal(loc=0.0, scale=0.05 * col.stddev, size=table.num_rows)
+                arr = c.add(table.column(col.name), pa.array(noise, type=pa.float32()))
+                arr = c.if_else(self.random_mask(n=table.num_rows, perc=col.mutate_perc), arr, pa.scalar(col.fill_value))
             table = table.drop([col.name]).append_column(col.name, arr)
         return table
 
