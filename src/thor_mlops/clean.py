@@ -7,10 +7,10 @@ from typing import List, Tuple, Union
 
 # Cleaning functions
 def clean_numerical(arr: pa.array, impute: float = 0.0, clip_min: float = None, clip_max: float = None) -> pa.array:
-    arr = arr.cast(pa.float32()).fill_null(impute)
+    arr = arr.cast(pa.float32())
     if clip_min: arr = c.if_else(c.greater(arr, pa.scalar(clip_min)), arr, pa.scalar(clip_min))
     if clip_max: arr = c.if_else(c.less(arr, pa.scalar(clip_max)), arr, pa.scalar(clip_max))
-    return c.round(arr, ndigits=5)
+    return c.round(arr.fill_null(impute), ndigits=5)
 
 def clean_categorical(arr: pa.array, categories: List[str] = []) -> Tuple[pa.array, List[str]]:
     arr = arr.cast(pa.string()).dictionary_encode()
@@ -32,7 +32,7 @@ def clean_onehot(arr: pa.array, categories: List[str] = [], drop_first: bool = F
 
 # Cleaning Classes
 class NumericalColumn():
-    def __init__(self, name: str, impute: str = 'mean', clip: bool = True, v_min: float = None, v_mean: float = None, v_stddev: float = None, v_max: float = None,  mutate_perc: float = 0.0, fill_value: int = -1):
+    def __init__(self, name: str, impute: str = 'fill', clip: bool = False, v_min: float = None, v_mean: float = None, v_stddev: float = None, v_max: float = None,  mutate_perc: float = 0.0, fill_value: int = -1):
         self.name, self.impute, self.clip = name, impute, clip
         self.measured = any((v_min, v_mean, v_max))
         self.mean, self.stddev, self.min, self.max = (v_mean or 0), (v_stddev or 0), (v_min or 0), (v_max or 0)
@@ -52,7 +52,9 @@ class NumericalColumn():
         return [self.name]
     
     def value(self) -> float:
-        if hasattr(self, self.impute):
+        if self.impute == 'fill':
+            return self.fill_value
+        elif hasattr(self, self.impute):
             return getattr(self, self.impute)
         else:
             raise Exception("{} is not a valid impute method".format(self.impute))
@@ -182,7 +184,6 @@ class ThorTableCleaner():
                     arr = table.column(col.name).fill_null(col.fill_value)                    
             elif isinstance(col, NumericalColumn):
                 arr = table.column(col.name).fill_null(col.fill_value)
-            
             table = table.drop([col.name]).append_column(col.name, arr)        
         return table
 
