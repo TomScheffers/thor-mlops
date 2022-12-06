@@ -159,12 +159,17 @@ class ThorTableCleaner():
     def random_mask(self, n, perc):
         return c.greater(pa.array(np.random.uniform(size=n)), pa.scalar(perc))
 
+    def random_int(self, n, low, high):
+        return pa.array(np.random.randint(low, high=high, size=n))
+
     def mutate(self, table: pa.Table) -> pa.Table:
         for col in self.columns:
             if isinstance(col, OneHotColumn):
                 continue
             elif isinstance(col, CategoricalColumn):
-                arr = c.if_else(self.random_mask(n=table.num_rows, perc=col.mutate_perc), table.column(col.name), pa.scalar(col.fill_value))
+                arr = table.column(col.name)
+                arr = c.if_else(self.random_mask(n=table.num_rows, perc=(col.mutate_perc / 2)), arr, self.random_int(n=table.num_rows, low=0, high=len(col.categories) + 1)) # 50%: SWAP RANDOMLY
+                arr = c.if_else(self.random_mask(n=table.num_rows, perc=(col.mutate_perc / 2)), arr, pa.scalar(col.fill_value)) # 50%: FILL 0 (UNKNOWN)
             elif isinstance(col, NumericalColumn):
                 noise = np.random.normal(loc=0.0, scale=0.05 * col.stddev, size=table.num_rows)
                 arr = c.add(table.column(col.name), pa.array(noise, type=pa.float32()))
